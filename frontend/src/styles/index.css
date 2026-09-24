@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   Theme tokens. Light is the primary mode -- a warm paper ground with flat,
+   full-bleed tiles. Dark is a selected counterpart, not an inverted flip:
+   every value was chosen against the dark surface.
+   =========================================================================== */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --color-ground: #efeae4;
+  --color-panel: #f4f1ec;
+  --color-raised: #faf8f5;
+  --color-ink: #111110;
+  --color-ink-2: #57534a;
+  --color-ink-3: #8a8378;
+  --color-rule: #dcd6cc;
+  --color-rule-strong: #c6bfb2;
+
+  --color-terracotta: #c1522b;
+  --color-forest: #12493a;
+
+  /* Chart palette -- validated, see docs/design-system.md */
+  --color-s1: #2a78d6;
+  --color-s2: #c1522b;
+  --color-s3: #1baf7a;
+  --color-s4: #eda100;
+  --color-s5: #7a4e9e;
+  --color-s6: #008300;
+
+  --color-pos: #12493a;
+  --color-neg: #c1522b;
+
+  --color-good: #12603f;
+  --color-warning: #a8761c;
+  --color-serious: #c1522b;
+  --color-critical: #92291a;
+
+  --color-div-neg: #2a78d6;
+  --color-div-mid: #e7e2da;
+  --color-div-pos: #c1522b;
+}
+
+@layer theme {
+  :root {
+    color-scheme: light;
+  }
+
+  /* Dark values under both scopes: the media query covers the OS setting, the
+     data-theme scope covers the in-app toggle, and the toggle wins both ways. */
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --color-ground: #100f0c;
+      --color-panel: #17150f;
+      --color-raised: #1f1c16;
+      --color-ink: #f7f5f0;
+      --color-ink-2: #a8a296;
+      --color-ink-3: #6f6a60;
+      --color-rule: #2e2a22;
+      --color-rule-strong: #3f3a30;
+
+      --color-terracotta: #d9663a;
+      --color-forest: #1c6e56;
+
+      --color-s1: #3987e5;
+      --color-s2: #d9663a;
+      --color-s3: #199e70;
+      --color-s4: #c98500;
+      --color-s5: #9085e9;
+      --color-s6: #008300;
+
+      --color-pos: #3fa980;
+      --color-neg: #e07a50;
+
+      --color-good: #3fa980;
+      --color-warning: #d1a04a;
+      --color-serious: #e07a50;
+      --color-critical: #e8604a;
+
+      --color-div-neg: #3987e5;
+      --color-div-mid: #26231c;
+      --color-div-pos: #d9663a;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-ground: #100f0c;
+    --color-panel: #17150f;
+    --color-raised: #1f1c16;
+    --color-ink: #f7f5f0;
+    --color-ink-2: #a8a296;
+    --color-ink-3: #6f6a60;
+    --color-rule: #2e2a22;
+    --color-rule-strong: #3f3a30;
+
+    --color-terracotta: #d9663a;
+    --color-forest: #1c6e56;
+
+    --color-s1: #3987e5;
+    --color-s2: #d9663a;
+    --color-s3: #199e70;
+    --color-s4: #c98500;
+    --color-s5: #9085e9;
+    --color-s6: #008300;
+
+    --color-pos: #3fa980;
+    --color-neg: #e07a50;
+
+    --color-good: #3fa980;
+    --color-warning: #d1a04a;
+    --color-serious: #e07a50;
+    --color-critical: #e8604a;
+
+    --color-div-neg: #3987e5;
+    --color-div-mid: #26231c;
+    --color-div-pos: #d9663a;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv05" 1, "ss03" 1;
+  }
+
+  /* Figures must not jitter as they update. */
+  .tnum,
+  table,
+  .figure {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-ground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* The letterspaced uppercase micro-label used for every caption, eyebrow,
+     axis tick and status chip. */
+  .label-xs {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.2;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .label-sm {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.3;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* The oversized editorial headline from the reference layout. */
+  .display {
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 0.92;
+  }
+
+  .figure-xl {
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .hairline {
+    border-color: var(--color-rule);
+  }
+
+  /* Tiles butt against each other with a 1px ground gap rather than a border,
+     which is what gives the reference its poster-like grid. */
+  .tile-grid {
+    display: grid;
+    gap: 1px;
+    background-color: var(--color-rule);
+    border-block: 1px solid var(--color-rule);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
