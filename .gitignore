@@ -22,6 +22,10 @@ data/
 logs/
 *.log
 
+# Design reference material: screenshots of a third-party product, kept locally
+# as input to the visual direction. Not ours to redistribute.
+reference/
+
 # os / editor
 .DS_Store
 Thumbs.db
