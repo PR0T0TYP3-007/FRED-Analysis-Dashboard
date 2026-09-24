@@ -1,0 +1,94 @@
+# Runs the whole system with one command:
+#
+#   docker compose up --build
+#
+# On first start the `init` service creates the schema and performs the initial
+# load from FRED, which takes about a minute. The dashboard then comes up on
+# http://localhost:8080 with the API proxied behind the same origin, so no CORS
+# configuration is needed anywhere.
+
+name: ledger
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-fred}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The API must not start against a server that is still bootstrapping.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ledger} -d ${POSTGRES_DB:-fred}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Not published by default: nothing outside the compose network needs it.
+    # Uncomment to inspect the warehouse with a local client.
+    # ports:
+    #   - "5432:5432"
+
+  # One-shot: create the schema, then do the initial ingest + analytics pass.
+  # `service_completed_successfully` below makes the API wait for it.
+  init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: "no"
+    environment:
+      FRED_API_KEY: ${FRED_API_KEY:?set FRED_API_KEY in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fred}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python -m app.cli init && python -m app.cli refresh"
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      FRED_API_KEY: ${FRED_API_KEY:?set FRED_API_KEY in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fred}
+      API_HOST: 0.0.0.0
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    depends_on:
+      db:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+
+  # The scheduled refresh. Separated from the API so a long-running job can
+  # never block a request, and so it can be scaled to zero independently.
+  scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      FRED_API_KEY: ${FRED_API_KEY:?set FRED_API_KEY in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ledger}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fred}
+      SCHEDULE_CRON_HOUR: ${SCHEDULE_CRON_HOUR:-7}
+      SCHEDULE_CRON_MINUTE: ${SCHEDULE_CRON_MINUTE:-30}
+      SCHEDULE_TIMEZONE: ${SCHEDULE_TIMEZONE:-America/New_York}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["python", "-m", "app.cli", "schedule"]
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
