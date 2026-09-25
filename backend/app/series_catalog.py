@@ -125,7 +125,7 @@ CATALOG: tuple[SeriesSpec, ...] = (
     SeriesSpec("BAMLH0A0HYM2", "High Yield Spread", "rates", PERCENT, LEVEL, 90, False),
     # ---- credit -------------------------------------------------------------
     SeriesSpec("M2SL", "M2 Money Supply", "credit", USD, YOY, 10, None, BILLIONS),
-    SeriesSpec("TOTALSL", "Consumer Credit", "credit", USD, YOY, 20, None, BILLIONS),
+    SeriesSpec("TOTALSL", "Consumer Credit", "credit", USD, YOY, 20, None, MILLIONS),
     SeriesSpec("DRCCLACBS", "Credit Card Delinquency", "credit", PERCENT, LEVEL, 30, False),
     SeriesSpec("TOTCI", "Commercial & Industrial Loans", "credit", USD, YOY, 40, True, BILLIONS),
     SeriesSpec("DRTSCILM", "Banks Tightening C&I Standards", "credit", PERCENT, LEVEL, 50, False),
@@ -198,6 +198,44 @@ FORECAST_SERIES: tuple[str, ...] = (
     "HOUST",
     "RSAFS",
 )
+
+
+# Magnitude words FRED uses at the start of a units string, e.g.
+# "Millions of U.S. Dollars", "Thousands of Persons".
+_MAGNITUDE_WORDS: tuple[tuple[str, float], ...] = (
+    ("trillions", 1e12),
+    ("billions", 1e9),
+    ("millions", 1e6),
+    ("thousands", 1e3),
+)
+
+
+def scale_from_units(units: str | None) -> float | None:
+    """The magnitude FRED's own `units` string implies, or None if it states none.
+
+    Used to cross-check the hand-declared `scale` on each catalog entry. Getting
+    this wrong renders a number off by a factor of a thousand, which looks
+    plausible enough to survive every other check.
+    """
+    if not units:
+        return None
+    head = units.strip().lower()
+    for word, factor in _MAGNITUDE_WORDS:
+        if head.startswith(word):
+            return factor
+    return None
+
+
+def scale_disagreement(spec: "SeriesSpec", units: str | None) -> str | None:
+    """Return a human-readable complaint when a declared scale contradicts FRED."""
+    expected = scale_from_units(units)
+    if expected is None or expected == spec.scale:
+        return None
+    return (
+        f"{spec.series_id}: catalog declares scale={spec.scale:,.0f} but FRED "
+        f"reports units {units!r}, implying {expected:,.0f} "
+        f"(off by {expected / spec.scale:,.0f}x)"
+    )
 
 
 def category_rank(category: str) -> int:

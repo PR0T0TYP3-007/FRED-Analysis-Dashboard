@@ -26,7 +26,12 @@ from psycopg.rows import dict_row
 
 from app.config import get_settings
 from app.fred_client import FredClient, FredError, Observation
-from app.series_catalog import CATALOG, SeriesSpec, category_rank
+from app.series_catalog import (
+    CATALOG,
+    SeriesSpec,
+    category_rank,
+    scale_disagreement,
+)
 
 log = logging.getLogger(__name__)
 
@@ -136,6 +141,14 @@ def _to_int(raw: object) -> int | None:
 
 def _metadata_row(spec: SeriesSpec, meta: dict) -> dict:
     last_updated = meta.get("last_updated")
+
+    # FRED states the magnitude in its units string. If our hand-declared scale
+    # disagrees, every figure for this series will be wrong by a round factor --
+    # and wrong by exactly the kind of factor that still looks like a number.
+    complaint = scale_disagreement(spec, meta.get("units"))
+    if complaint:
+        log.warning("scale mismatch -- %s", complaint)
+
     return {
         "series_id": spec.series_id,
         "title": meta.get("title") or spec.display_name,

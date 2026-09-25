@@ -270,3 +270,67 @@ class TestForecast:
         trend = monthly([50.0 + i * 1.5 for i in range(200)], start="2005-01-01")
         stats = backtest(trend)
         assert stats["skill"] is not None and stats["skill"] > 0.5
+
+
+# --------------------------------------------------------------------------- #
+# catalog integrity
+# --------------------------------------------------------------------------- #
+class TestCatalogScales:
+    """A wrong magnitude renders a figure off by a round factor of a thousand,
+    which still looks like a number and so survives every other check. FRED
+    states the magnitude in its units string, so it can be verified."""
+
+    @pytest.mark.parametrize(
+        ("units", "expected"),
+        [
+            ("Millions of Dollars", 1e6),
+            ("Millions of U.S. Dollars", 1e6),
+            ("Billions of Chained 2017 Dollars", 1e9),
+            ("Billions of U.S. Dollars", 1e9),
+            ("Thousands of Persons", 1e3),
+            ("Thousands of Units", 1e3),
+            ("Dollars per Hour", None),
+            ("Percent", None),
+            ("Index 1982-1984=100", None),
+            (None, None),
+        ],
+    )
+    def test_reads_the_magnitude_fred_states(self, units, expected):
+        from app.series_catalog import scale_from_units
+
+        assert scale_from_units(units) == expected
+
+    def test_flags_a_contradicted_scale(self):
+        from app.series_catalog import CATALOG_BY_ID, scale_disagreement
+
+        spec = CATALOG_BY_ID["TOTALSL"]  # declared in millions
+        assert scale_disagreement(spec, "Millions of U.S. Dollars") is None
+        complaint = scale_disagreement(spec, "Billions of U.S. Dollars")
+        assert complaint is not None and "off by 1,000x" in complaint
+
+    def test_no_dollar_series_contradicts_itself(self):
+        """Guards the whole catalog, not just the one that was wrong."""
+        from app.series_catalog import CATALOG, scale_from_units
+
+        # Magnitudes asserted from FRED's published units for each series.
+        known_units = {
+            "GDPC1": "Billions of Chained 2017 Dollars",
+            "RSAFS": "Millions of Dollars",
+            "PCEC96": "Billions of Chained 2017 Dollars",
+            "BUSINV": "Millions of Dollars",
+            "M2SL": "Billions of Dollars",
+            "TOTALSL": "Millions of U.S. Dollars",
+            "TOTCI": "Billions of U.S. Dollars",
+            "HOUST": "Thousands of Units",
+            "PERMIT": "Thousands of Units",
+            "PAYEMS": "Thousands of Persons",
+            "JTSJOL": "Thousands",
+        }
+        for spec in CATALOG:
+            units = known_units.get(spec.series_id)
+            if units is None:
+                continue
+            assert spec.scale == scale_from_units(units), (
+                f"{spec.series_id} declares scale={spec.scale:,.0f} "
+                f"but FRED reports {units!r}"
+            )
