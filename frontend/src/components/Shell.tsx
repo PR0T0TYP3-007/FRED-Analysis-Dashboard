@@ -63,7 +63,7 @@ export default function Shell() {
       </a>
 
       <header className="sticky top-0 z-40 border-b border-[var(--color-rule)] bg-[var(--color-ground)]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1500px] items-center gap-6 px-4 py-3.5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-[1500px] items-center gap-6 px-4 py-5 sm:px-6 lg:px-8">
           <NavLink to="/" className="flex shrink-0 items-baseline gap-2.5">
             <span className="text-[19px] font-extrabold tracking-[-0.045em]">Ledger</span>
             <span className="label-xs hidden text-[var(--color-ink-3)] sm:inline">
@@ -71,7 +71,10 @@ export default function Shell() {
             </span>
           </NavLink>
 
-          <nav aria-label="Primary" className="min-w-0 flex-1 overflow-x-auto">
+          <nav
+            aria-label="Primary"
+            className="no-scrollbar min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+          >
             <ul className="flex items-center gap-1">
               {NAV.map((item, index) => (
                 <li key={item.to} className="flex items-center">
@@ -89,7 +92,7 @@ export default function Shell() {
                         item.meta ? "font-normal" : "font-medium"
                       } ${
                         isActive
-                          ? "text-[var(--color-ink)] after:absolute after:inset-x-3 after:-bottom-[15px] after:h-[2px] after:bg-[var(--color-ink)]"
+                          ? "text-[var(--color-ink)] after:absolute after:inset-x-3 after:-bottom-[21px] after:h-[2px] after:bg-[var(--color-ink)]"
                           : "text-[var(--color-ink-2)] hover:text-[var(--color-ink)]"
                       }`
                     }

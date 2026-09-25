@@ -190,6 +190,18 @@
     border-color: var(--color-rule);
   }
 
+  /* Scrollable without the scrollbar chrome. Used on the nav, which must stay
+     swipeable on narrow screens but should never show a scrollbar inside the
+     bar -- setting overflow-x alone makes the browser render one vertically. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Tiles butt against each other with a 1px ground gap rather than a border,
      which is what gives the reference its poster-like grid. */
   .tile-grid {
