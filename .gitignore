@@ -26,6 +26,9 @@ logs/
 # as input to the visual direction. Not ours to redistribute.
 reference/
 
+# Personal plain-English reference for the indicators. Kept local on purpose.
+MY-GUIDE.md
+
 # os / editor
 .DS_Store
 Thumbs.db
