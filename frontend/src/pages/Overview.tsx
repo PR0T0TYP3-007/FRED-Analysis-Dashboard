@@ -6,7 +6,6 @@ import { changeFor, formatDate, headlineFor, moveSentiment } from "../lib/format
 import {
   EmptyNote,
   ErrorNote,
-  Eyebrow,
   Panel,
   SectionLabel,
   SeriesTile,
@@ -17,13 +16,6 @@ import TimeSeriesChart from "../components/charts/TimeSeriesChart";
 import Sparkline from "../components/charts/Sparkline";
 import type { TileTone } from "../components/ui";
 import type { SeriesCard } from "../lib/types";
-
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning.";
-  if (hour < 18) return "Good afternoon.";
-  return "Good evening.";
-}
 
 /** The accent tiles are earned, not decorative: the series with the most
  *  unusual reading versus its own five-year history takes the terracotta tile,
@@ -86,10 +78,9 @@ export default function OverviewPage() {
     <div className="flex flex-col gap-12">
       {/* ---- hero -------------------------------------------------------- */}
       <section>
-        <Eyebrow>Overview</Eyebrow>
-        <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
-          <h1 className="display max-w-3xl text-[clamp(2.75rem,8vw,5.5rem)]">{greeting()}</h1>
-          <div className="flex flex-col items-start gap-2 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <h1 className="label-sm text-[var(--color-ink-3)]">Overview</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="label-xs text-[var(--color-ink-3)]">Current read</span>
             <div className="flex flex-wrap items-center gap-2">
               {triggered.length > 0 ? (
