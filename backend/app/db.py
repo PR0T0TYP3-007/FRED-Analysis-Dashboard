@@ -72,10 +72,28 @@ def execute(sql_text: str, params: Sequence[Any] | dict[str, Any] | None = None)
 
 
 def ensure_database() -> bool:
-    """Create the target database if it does not exist yet. Returns True if created."""
+    """Create the target database if it does not exist yet. Returns True if created.
+
+    Tries the target first. A managed provider (Neon, Supabase, RDS) hands you
+    a database that already exists and frequently forbids CREATE DATABASE
+    outright, so connecting successfully is the whole job. Only when the target
+    is genuinely absent -- the local-Postgres first-run case -- do we fall back
+    to a maintenance database to create it.
+    """
     settings = get_settings()
     name = settings.database_name
-    with psycopg.connect(settings.admin_database_url, autocommit=True) as conn:
+
+    try:
+        with psycopg.connect(settings.database_url, connect_timeout=20):
+            return False
+    except psycopg.OperationalError as exc:
+        # Anything other than "no such database" (bad password, unreachable
+        # host, SSL refused) is a real problem and must not be papered over by
+        # trying to create something.
+        if f'database "{name}" does not exist' not in str(exc):
+            raise
+
+    with psycopg.connect(settings.admin_database_url, autocommit=True, connect_timeout=20) as conn:
         with conn.cursor() as cur:
             cur.execute("select 1 from pg_database where datname = %s", (name,))
             if cur.fetchone():

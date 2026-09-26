@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -60,16 +61,19 @@ class Settings(BaseSettings):
 
     @property
     def admin_database_url(self) -> str:
-        """Same server, but pointed at the always-present `postgres` database.
+        """Same server, pointed at a maintenance database.
 
-        Used only to CREATE DATABASE on first run.
+        Parsed rather than string-split: the database name is the last path
+        segment but the query string rides on the end of it, so splitting on
+        "/" silently discards `?sslmode=require`. A managed provider then
+        refuses the plaintext connection and first-run setup fails.
         """
-        base, _, _ = self.database_url.rpartition("/")
-        return f"{base}/postgres"
+        parts = urlsplit(self.database_url)
+        return urlunsplit(parts._replace(path="/postgres"))
 
     @property
     def database_name(self) -> str:
-        return self.database_url.rpartition("/")[2].split("?")[0]
+        return urlsplit(self.database_url).path.lstrip("/") or "postgres"
 
 
 @lru_cache(maxsize=1)
