@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+import secrets
+
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query
 
 from app import db
+from app.config import get_settings
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
@@ -91,15 +94,76 @@ def run_detail(run_id: int) -> dict:
     return {"run": run, "series": series}
 
 
+# A refresh spends ~90 calls of a 120/minute API budget and rebuilds every
+# derived table, so it must not be something an anonymous caller can trigger at
+# will. Two independent guards below: a shared secret, and a concurrency lock.
+MIN_SECONDS_BETWEEN_RUNS = 300
+
+
+def _require_admin(token: str | None) -> None:
+    """Authorise a refresh, or refuse in a way that leaks nothing.
+
+    With no ADMIN_TOKEN configured the endpoint does not exist as far as callers
+    are concerned -- a 404 rather than a 403, so probing cannot distinguish
+    "disabled" from "wrong token".
+    """
+    configured = get_settings().admin_token
+    if not configured:
+        raise HTTPException(status_code=404, detail="Not Found")
+    # Constant-time comparison: a plain == leaks the token a byte at a time.
+    # Compared as bytes because compare_digest rejects non-ASCII str, and a
+    # TypeError here would become a 500 that distinguishes a wrong token from
+    # a disabled endpoint -- exactly what the 404 is there to prevent.
+    supplied = (token or "").encode("utf-8", "ignore")
+    if not secrets.compare_digest(supplied, configured.encode("utf-8", "ignore")):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
 @router.post("/refresh")
-def trigger_refresh(background: BackgroundTasks, full: bool = Query(False)) -> dict:
+def trigger_refresh(
+    background: BackgroundTasks,
+    full: bool = Query(False),
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+) -> dict:
     """Kick off an ingest + analytics pass without blocking the request.
 
-    Handy for demos; a production deployment would put this behind auth and a
-    proper job queue rather than FastAPI background tasks.
+    Requires `X-Admin-Token`. Returns 404 when no token is configured, which is
+    the default, so a public deployment exposes no write surface at all.
     """
+    _require_admin(x_admin_token)
+
     from app.analytics.runner import run_analytics
     from app.ingest import run_ingest
+
+    # Refuse to pile refreshes on top of each other: each one holds the whole
+    # panel in memory and spends most of the API budget.
+    active = db.query_one(
+        """select run_id, started_at from core.ingest_runs
+            where status = 'running'
+              and started_at > now() - interval '1 hour'
+            order by started_at desc limit 1"""
+    )
+    if active:
+        raise HTTPException(
+            status_code=409,
+            detail=f"refresh already running (run {active['run_id']})",
+        )
+
+    recent = db.query_one(
+        """select run_id,
+                  extract(epoch from now() - started_at)::int as age_seconds
+             from core.ingest_runs
+            order by started_at desc limit 1"""
+    )
+    if recent and recent["age_seconds"] is not None:
+        if recent["age_seconds"] < MIN_SECONDS_BETWEEN_RUNS:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"last refresh was {recent['age_seconds']}s ago; "
+                    f"wait {MIN_SECONDS_BETWEEN_RUNS - recent['age_seconds']}s"
+                ),
+            )
 
     def job() -> None:
         report = run_ingest(full_refresh=full, trigger="api")

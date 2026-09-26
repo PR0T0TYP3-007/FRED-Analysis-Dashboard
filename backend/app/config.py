@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     schedule_cron_minute: int = Field(default=30, alias="SCHEDULE_CRON_MINUTE")
     schedule_timezone: str = Field(default="America/New_York", alias="SCHEDULE_TIMEZONE")
 
+    # Shared secret guarding the refresh endpoint. Left unset, that endpoint is
+    # disabled entirely -- which is the right default for a public deployment.
+    admin_token: str = Field(default="", alias="ADMIN_TOKEN")
+
     api_host: str = Field(default="127.0.0.1", alias="API_HOST")
     api_port: int = Field(default=8000, alias="API_PORT")
     cors_origins: str = Field(
