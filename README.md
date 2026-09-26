@@ -92,9 +92,10 @@ docker compose up --build
 
 The schema is created and the first load runs automatically; the dashboard comes
 up on **http://localhost:8080** with the API proxied behind the same origin.
-See [docs/deployment.md](docs/deployment.md) for the service layout and for
-hosting it publicly. *(The Compose file validates but has not been run end to
-end — the local path below is the exercised one.)*
+Five services: Postgres, a one-shot `init` that applies the schema and does the
+first load, the API, the scheduler, and nginx serving the built frontend.
+*(The Compose file validates but has not been run end to end — the local path
+below is the exercised one.)*
 
 ### Locally
 
@@ -164,11 +165,23 @@ The API is read-only, holds no user data, and is published with `pip-audit` and
 `npm audit` both clean. The single write endpoint is disabled unless an
 `ADMIN_TOKEN` is set, so a public deployment exposes no write surface at all.
 
-An audit before first publication found and fixed two real vulnerabilities: the
-FRED API key could be disclosed through an error message rendered on the public
-pipeline page, and the refresh endpoint was anonymously triggerable. Both are
-written up in [SECURITY.md](SECURITY.md) along with the threat model and the
-limitations that were accepted rather than fixed.
+An audit before first publication found and fixed two real vulnerabilities:
+
+- **API key disclosure.** The key travels in the query string, and httpx embeds
+  the full request URL in the exception from `raise_for_status()`. That text was
+  persisted to the ingest log and served by a public endpoint — and FRED answers
+  a revoked key with 403, so the likeliest failure was the one that would publish
+  the credential. Every error path now runs through a redaction helper, applied
+  again before the message is stored.
+- **Unauthenticated refresh.** `POST /api/pipeline/refresh` rebuilt everything
+  with no auth, letting anyone drain a 120/minute API budget and spawn concurrent
+  in-memory rebuilds. It now returns 404 unless `ADMIN_TOKEN` is set, requires a
+  constant-time token check when enabled, and refuses overlapping (409) or rapid
+  (429) runs.
+
+Both are pinned by regression tests in `backend/tests/test_security.py`. Known
+limitations kept deliberately: no application-level rate limiting on read
+endpoints, and no TLS in the Compose stack — both belong at the proxy.
 
 ## Notes on the analysis
 
@@ -201,10 +214,13 @@ letterspaced labels, and a few inverted accent tiles. The accent on a tile is
 earned — the series sitting furthest from its own five-year norm in the wrong
 direction takes the terracotta tile.
 
-The chart palette was validated for colour-vision deficiency and contrast in
-both light and dark modes rather than chosen by eye; the numbers, the
-reproduction commands and the resulting series cap are in
-[docs/design-system.md](docs/design-system.md).
+The chart palette was validated for colour-vision deficiency and contrast against
+the real surfaces in both themes rather than chosen by eye. One result shaped the
+product: only the first three slots stay separable when any pair can appear
+together, so **series comparison is capped at three**. Two light-mode slots fall
+below 3:1 against the paper ground, so every multi-series chart ships a legend
+*and* direct end-of-line labels, and every chart has a table view — identity
+never rests on colour alone.
 
 Every chart carries a crosshair tooltip, a legend and direct labels once there
 is more than one series, and a table view behind the `Table` toggle, so no
@@ -247,22 +263,15 @@ frontend/
     components/charts/ the chart kit built on d3-scale
     pages/             the six screens
     lib/               API client, types, formatting
-docs/
 ```
 
-## Documentation
+## Reading it
 
-| Document | What it covers |
-|---|---|
-| [docs/case-study.md](docs/case-study.md) | The project as a case study — problem, architecture, decisions, trade-offs, results |
-| [docs/build-log.md](docs/build-log.md) | Step-by-step record of how it was built and why each decision went the way it did, including what was wrong first time |
-| [docs/design-system.md](docs/design-system.md) | Theme tokens, the validated chart palette, and the accessibility measurements behind them |
-| [docs/deployment.md](docs/deployment.md) | Docker Compose layout and a runbook for hosting it publicly |
-| [SECURITY.md](SECURITY.md) | Threat model, the two vulnerabilities found in the pre-publication audit, and the standing controls |
-
-The running site also carries two pages for visitors: **Guide** explains how to
-read every chart and what the vocabulary means, and **Case study** tells the
-engineering story with figures read live from the warehouse.
+The running site carries its own documentation. **Guide** explains how to read
+every chart and what the vocabulary means, for visitors with no economics
+background. **Case study** tells the engineering story — architecture, the
+decisions and their trade-offs, and the bugs worth admitting to — with its
+headline figures read live from the warehouse rather than typed in.
 
 ## Data
 

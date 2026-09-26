@@ -26,8 +26,10 @@ logs/
 # as input to the visual direction. Not ours to redistribute.
 reference/
 
-# Personal plain-English reference for the indicators. Kept local on purpose.
+# Long-form writing kept local: the README is the only Markdown published.
 MY-GUIDE.md
+SECURITY.md
+docs/*.md
 
 # os / editor
 .DS_Store
