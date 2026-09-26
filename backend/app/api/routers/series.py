@@ -14,6 +14,11 @@ router = APIRouter(prefix="/api/series", tags=["series"])
 
 VALID_TRANSFORMS = {"level", "yoy", "mom", "index100", "zscore"}
 
+# Above the longest series in the catalog (~17k daily observations), so this
+# never truncates real data -- it only bounds the response a pathological or
+# hostile request can ask this endpoint to build.
+MAX_OBSERVATION_ROWS = 25_000
+
 TRANSFORM_COLUMN = {
     "level": "m.value",
     "yoy": "m.pct_12m",
@@ -25,7 +30,9 @@ TRANSFORM_COLUMN = {
 @router.get("")
 def list_series(
     category: str | None = Query(None),
-    search: str | None = Query(None, description="Case-insensitive match on id or name."),
+    search: str | None = Query(
+        None, max_length=100, description="Case-insensitive match on id or name."
+    ),
 ) -> dict:
     clauses = ["s.is_active"]
     params: list[object] = []
@@ -114,8 +121,9 @@ def get_observations(
                    m.rolling_3, m.rolling_12, m.zscore_5y, m.pctile_10y, m.drawdown
               from analytics.series_metrics m
              where {" and ".join(clauses)}
-             order by m.obs_date""",
-        params,
+             order by m.obs_date
+             limit %s""",
+        [*params, MAX_OBSERVATION_ROWS],
     )
     if not rows:
         raise HTTPException(status_code=404, detail=f"no observations for {series_id}")
