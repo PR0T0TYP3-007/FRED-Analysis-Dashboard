@@ -70,8 +70,23 @@ export function changeFor(card: {
   pct_12m: number | null;
   diff_12m: number | null;
 }): ChangeView {
-  if (card.unit_kind === "percent" || card.unit_kind === "ratio") {
+  // A percentage moves in percentage points.
+  if (card.unit_kind === "percent") {
     return { text: formatPoints(card.diff_12m), value: card.diff_12m, basis: "vs year ago" };
+  }
+  // A ratio is a plain quantity -- hours per week, a 0/1 flag. It moves in its
+  // own units, so "pp" would be nonsense: weekly hours rising 0.7 is 0.7 hours,
+  // not 0.7 percentage points.
+  if (card.unit_kind === "ratio") {
+    const value = card.diff_12m;
+    return {
+      text:
+        value === null || Number.isNaN(value)
+          ? "—"
+          : `${value >= 0 ? "+" : ""}${value.toFixed(2)}`,
+      value,
+      basis: "vs year ago",
+    };
   }
   return { text: formatPercent(card.pct_12m), value: card.pct_12m, basis: "vs year ago" };
 }

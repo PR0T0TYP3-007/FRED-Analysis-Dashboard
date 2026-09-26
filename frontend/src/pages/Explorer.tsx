@@ -114,14 +114,19 @@ export default function ExplorerPage() {
 
   // Mixing units on one axis is meaningless, so comparison forces a unitless
   // transform rather than reaching for a second y-axis.
+  // Two series are only plottable on a shared axis when they share a unit
+  // family *and* a magnitude. Real GDP and Retail Sales are both "usd", but one
+  // is reported in billions and the other in millions -- putting them on one
+  // axis compares 24,270 against 773,947 and labels both with the same scale.
   const comparisonNeedsRebase =
-    compare.length > 0 && (transform === "level" || transform === "index100") &&
+    compare.length > 0 &&
+    (transform === "level" || transform === "index100") &&
     chartSeries.length > 1 &&
     new Set(
-      chartSeries.map(
-        (s) =>
-          catalog.data?.series.find((entry) => entry.series_id === s.id)?.unit_kind ?? "level",
-      ),
+      chartSeries.map((s) => {
+        const entry = catalog.data?.series.find((e) => e.series_id === s.id);
+        return `${entry?.unit_kind ?? "count"}:${entry?.scale ?? 1}`;
+      }),
     ).size > 1;
 
   useEffect(() => {
