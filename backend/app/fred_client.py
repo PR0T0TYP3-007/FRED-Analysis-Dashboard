@@ -9,6 +9,7 @@ record exactly how much of the budget it spent.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -28,6 +29,24 @@ from app.config import get_settings
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://api.stlouisfed.org/fred"
+
+
+REDACTED = "api_key=***REDACTED***"
+_KEY_IN_URL = re.compile(r"api_key=[A-Za-z0-9]+")
+
+
+def redact(text: str, api_key: str | None = None) -> str:
+    """Strip the API key out of any text before it is logged or stored.
+
+    The key travels in the query string, and httpx puts the full URL into its
+    error messages. Those messages are persisted to `core.ingest_series_log`
+    and served by the pipeline API, so an unsanitised error is a credential
+    disclosure on a public dashboard.
+    """
+    cleaned = _KEY_IN_URL.sub(REDACTED, text)
+    if api_key:
+        cleaned = cleaned.replace(api_key, "***REDACTED***")
+    return cleaned
 
 
 class FredError(RuntimeError):
@@ -117,6 +136,10 @@ class FredClient:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
+    def _safe(self, text: str) -> str:
+        """Redact this client's key from a message before it escapes."""
+        return redact(text, self.api_key)
+
     @property
     def call_count(self) -> int:
         with self._calls_lock:
@@ -137,7 +160,9 @@ class FredClient:
         except httpx.TimeoutException as exc:
             raise FredTransientError(f"timeout calling {path}") from exc
         except httpx.HTTPError as exc:
-            raise FredTransientError(f"transport error calling {path}: {exc}") from exc
+            raise FredTransientError(
+                self._safe(f"transport error calling {path}: {exc}")
+            ) from exc
 
         with self._calls_lock:
             self._calls += 1
@@ -148,9 +173,22 @@ class FredClient:
             raise FredTransientError(f"FRED {response.status_code} on {path}")
         if response.status_code == 400:
             # FRED returns a readable reason in the body for bad series ids.
-            raise FredError(f"FRED rejected request to {path}: {response.text[:300]}")
-        response.raise_for_status()
-        return response.json()
+            raise FredError(
+                self._safe(f"FRED rejected request to {path}: {response.text[:300]}")
+            )
+        if response.status_code >= 400:
+            # Deliberately not response.raise_for_status(): httpx embeds the
+            # full request URL -- including api_key -- in that exception.
+            raise FredError(
+                self._safe(
+                    f"FRED returned {response.status_code} for {path}: "
+                    f"{response.text[:300]}"
+                )
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise FredError(f"FRED returned a non-JSON body for {path}") from exc
 
     # -- endpoints ------------------------------------------------------------
     def get_series(self, series_id: str) -> dict:

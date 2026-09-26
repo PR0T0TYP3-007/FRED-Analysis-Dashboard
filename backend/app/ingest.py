@@ -25,7 +25,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from app.config import get_settings
-from app.fred_client import FredClient, FredError, Observation
+from app.fred_client import FredClient, FredError, Observation, redact
 from app.series_catalog import (
     CATALOG,
     SeriesSpec,
@@ -229,7 +229,7 @@ def _ingest_one(
             spec.series_id,
             "failed",
             duration_ms=int((time.perf_counter() - started) * 1000),
-            message=str(exc)[:500],
+            message=redact(str(exc))[:500],
         )
     except Exception as exc:  # noqa: BLE001 - one bad series must not kill the run
         log.exception("%s raised", spec.series_id)
@@ -237,7 +237,9 @@ def _ingest_one(
             spec.series_id,
             "failed",
             duration_ms=int((time.perf_counter() - started) * 1000),
-            message=f"{type(exc).__name__}: {exc}"[:500],
+            # Redacted again here: this string is persisted and then served
+            # by the public pipeline endpoint.
+            message=redact(f"{type(exc).__name__}: {exc}")[:500],
         )
 
 
