@@ -1,5 +1,7 @@
 # Ledger — a US macro data warehouse
 
+### **[→ See it running](https://ledger-web-8toj.onrender.com)**  ·  [API](https://ledger-api-9e0s.onrender.com/docs)
+
 A scheduled pipeline that pulls 45 curated series from the St. Louis Fed's FRED
 API into Postgres, derives a second layer of analytics on top of them, and
 serves the result as an interactive dashboard.
@@ -9,7 +11,35 @@ end: the loader records every run, the analytics pass rebuilds its tables inside
 a single transaction, the API only ever reads, and the dashboard shows where its
 numbers came from and how stale they are.
 
-![Overview](docs/screenshots/overview.png)
+[![Overview](docs/screenshots/overview.png)](https://ledger-web-8toj.onrender.com)
+
+**New to the numbers?** The dashboard's own
+[Guide](https://ledger-web-8toj.onrender.com/guide) explains how to read every
+chart and what the vocabulary means, with no economics background assumed. The
+[Case study](https://ledger-web-8toj.onrender.com/case-study) covers the
+engineering — architecture, the decisions and their trade-offs — with its
+figures read live from the warehouse.
+
+---
+
+## Running live
+
+| | |
+|---|---|
+| **Dashboard** | [ledger-web-8toj.onrender.com](https://ledger-web-8toj.onrender.com) — static, always on |
+| **API** | [ledger-api-9e0s.onrender.com](https://ledger-api-9e0s.onrender.com/docs) — FastAPI, OpenAPI docs at `/docs` |
+| **Database** | Neon Postgres, co-located with the API in us-east-2 |
+| **Refresh** | GitHub Actions, weekday mornings — no always-on worker |
+
+The refresh job is a pure function of the database, so it needs no long-lived
+process: a scheduled runner does the same work a cron container would, for
+nothing. The one write endpoint is disabled unless an `ADMIN_TOKEN` is set, so
+the public deployment exposes no write surface at all.
+
+*The API sleeps after 15 minutes idle on its free tier; an uptime ping keeps it
+warm. That ping deliberately hits `/ping`, which does not touch the database —
+pinging `/health` would keep a scale-to-zero database awake around the clock to
+serve nobody.*
 
 ---
 
