@@ -1,0 +1,63 @@
+# Render blueprint: the API and the dashboard, deployed from this repo.
+#
+# The database is NOT defined here -- it lives on Neon, and its connection
+# string is supplied as an environment variable. The daily refresh is not here
+# either: it runs on a GitHub Actions schedule (.github/workflows/refresh.yml),
+# because Render cron jobs are a paid feature and the refresh needs no
+# always-on process.
+services:
+  # ---------------------------------------------------------------- the API
+  - type: web
+    name: ledger-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      # sync:false means "prompt me for this in the dashboard" -- these are
+      # secrets and must never be committed.
+      - key: FRED_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: API_HOST
+        value: 0.0.0.0
+      # The database scales to zero; do not hold an idle connection open.
+      - key: DB_POOL_MIN
+        value: "0"
+      # Left unset on purpose: with no ADMIN_TOKEN the refresh endpoint returns
+      # 404, so the public API exposes no write surface at all.
+
+  # ------------------------------------------------------------ the dashboard
+  - type: web
+    name: ledger-web
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    routes:
+      # The frontend calls relative /api paths, so proxy them to the API
+      # service. This keeps everything same-origin: no CORS, no preflight, and
+      # no API URL baked into the build.
+      #
+      # EDIT THIS after the API deploys, if Render assigned it a different
+      # hostname than ledger-api.onrender.com.
+      - type: rewrite
+        source: /api/*
+        destination: https://ledger-api.onrender.com/api/*
+      # Client-side routing: unknown paths fall through to the SPA.
+      - type: rewrite
+        source: /*
+        destination: /index.html

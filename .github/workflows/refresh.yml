@@ -1,0 +1,63 @@
+# The daily warehouse refresh.
+#
+# This replaces the always-on scheduler container. The refresh job is a pure
+# function of the database -- it reads FRED, writes core.*, rebuilds analytics.*
+# -- so it does not need a long-lived process, and a scheduled runner is free
+# where an always-on worker is not.
+name: Refresh warehouse
+
+on:
+  schedule:
+    # 12:00 UTC on weekdays. GitHub cron has no timezone support, so this is
+    # 08:00 US Eastern in summer and 07:00 in winter. FRED publishes in the
+    # morning; the exact minute does not matter.
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch: {}
+
+concurrency:
+  # Never let two refreshes overlap: each holds the whole panel in memory and
+  # spends most of the FRED rate budget.
+  group: warehouse-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Apply schema (idempotent)
+        working-directory: backend
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m app.cli init
+
+      - name: Ingest and rebuild analytics
+        working-directory: backend
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # The runner is short-lived and the database scales to zero; do not
+          # hold a connection open.
+          DB_POOL_MIN: "0"
+        run: python -m app.cli refresh
+
+      - name: Report coverage
+        working-directory: backend
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DB_POOL_MIN: "0"
+        run: python -m app.cli status
