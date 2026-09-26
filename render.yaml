@@ -55,11 +55,11 @@ services:
       # service. This keeps everything same-origin: no CORS, no preflight, and
       # no API URL baked into the build.
       #
-      # EDIT THIS after the API deploys, if Render assigned it a different
-      # hostname than ledger-api.onrender.com.
+      # Render appends a random suffix to service hostnames, so this is the
+      # deployed API's actual address rather than the service name.
       - type: rewrite
         source: /api/*
-        destination: https://ledger-api.onrender.com/api/*
+        destination: https://ledger-api-9e0s.onrender.com/api/*
       # Client-side routing: unknown paths fall through to the SPA.
       - type: rewrite
         source: /*
