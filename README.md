@@ -146,14 +146,29 @@ under cron or systemd calling `app.cli refresh`.
 ## Tests
 
 ```bash
-cd backend && python -m pytest        # 56 tests
+cd backend && python -m pytest        # 84 tests
 ```
 
 They cover the places where a silent error would put a wrong number on screen
 rather than raise: frequency-aware year-over-year lags, the "." missing-value
 convention, percentage-point versus percent handling for rate series, the
-lead/lag sign convention, episode dating, and the backtest's willingness to
-report that a model has no skill.
+lead/lag sign convention, episode dating, the magnitude declared for every
+series, and the backtest's willingness to report that a model has no skill.
+
+`tests/test_security.py` pins the fixes from the pre-publication audit — that no
+FRED error path can echo the API key, and that the one write endpoint stays shut.
+
+## Security
+
+The API is read-only, holds no user data, and is published with `pip-audit` and
+`npm audit` both clean. The single write endpoint is disabled unless an
+`ADMIN_TOKEN` is set, so a public deployment exposes no write surface at all.
+
+An audit before first publication found and fixed two real vulnerabilities: the
+FRED API key could be disclosed through an error message rendered on the public
+pipeline page, and the refresh endpoint was anonymously triggerable. Both are
+written up in [SECURITY.md](SECURITY.md) along with the threat model and the
+limitations that were accepted rather than fixed.
 
 ## Notes on the analysis
 
@@ -243,6 +258,7 @@ docs/
 | [docs/build-log.md](docs/build-log.md) | Step-by-step record of how it was built and why each decision went the way it did, including what was wrong first time |
 | [docs/design-system.md](docs/design-system.md) | Theme tokens, the validated chart palette, and the accessibility measurements behind them |
 | [docs/deployment.md](docs/deployment.md) | Docker Compose layout and a runbook for hosting it publicly |
+| [SECURITY.md](SECURITY.md) | Threat model, the two vulnerabilities found in the pre-publication audit, and the standing controls |
 
 The running site also carries two pages for visitors: **Guide** explains how to
 read every chart and what the vocabulary means, and **Case study** tells the
