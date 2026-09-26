@@ -13,7 +13,10 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     plan: free
-    region: oregon
+    # Must match the database's region. The API issues several queries per
+    # request, so every extra millisecond of round-trip is paid multiple times
+    # per page load. Neon is in us-east-2, so this is Ohio.
+    region: ohio
     healthCheckPath: /health
     envVars:
       # sync:false means "prompt me for this in the dashboard" -- these are
