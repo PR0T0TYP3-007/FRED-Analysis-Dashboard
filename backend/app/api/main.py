@@ -58,5 +58,23 @@ app.include_router(pipeline.router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict:
+    """Readiness: touches the database, so it fails if Postgres is unreachable.
+
+    Use this for a platform health check. Do NOT point an uptime pinger at it
+    -- see /ping.
+    """
     row = db.query_one("select count(*) as n from core.observations")
     return {"status": "ok", "observations": row["n"] if row else 0}
+
+
+@app.get("/ping", tags=["meta"])
+def ping() -> dict:
+    """Liveness only. Deliberately does not touch the database.
+
+    An uptime pinger exists to stop the host suspending an idle service. If it
+    hit /health instead, every ping would also wake a scale-to-zero database
+    and burn its compute allowance around the clock -- paying for a warm
+    database to serve nobody. This keeps the web service alive and lets the
+    database sleep until someone actually asks for data.
+    """
+    return {"status": "alive"}
