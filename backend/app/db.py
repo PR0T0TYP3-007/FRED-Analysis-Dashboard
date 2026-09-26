@@ -22,11 +22,17 @@ _pool: ConnectionPool | None = None
 def get_pool() -> ConnectionPool:
     global _pool
     if _pool is None:
+        settings = get_settings()
         _pool = ConnectionPool(
-            conninfo=get_settings().database_url,
-            min_size=1,
-            max_size=10,
+            conninfo=settings.database_url,
+            min_size=settings.db_pool_min,
+            max_size=settings.db_pool_max,
             kwargs={"row_factory": dict_row},
+            # Validate a connection before handing it out. Without this a hosted
+            # database that scales to zero, or any server that drops idle links,
+            # surfaces as an error on the next request rather than a reconnect.
+            check=ConnectionPool.check_connection,
+            max_idle=300.0,
             open=True,
         )
         # Without this, a short-lived script exits while pool workers are still

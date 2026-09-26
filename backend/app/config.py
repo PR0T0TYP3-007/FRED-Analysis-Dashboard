@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     fred_api_key: str = Field(alias="FRED_API_KEY")
     database_url: str = Field(alias="DATABASE_URL")
 
+    # Pool sizing. Against a scale-to-zero hosted database (Neon, Supabase)
+    # set DB_POOL_MIN=0 so an idle dashboard does not hold a connection open
+    # and keep waking the compute.
+    db_pool_min: int = Field(default=1, alias="DB_POOL_MIN")
+    db_pool_max: int = Field(default=10, alias="DB_POOL_MAX")
+
     fred_max_rpm: int = Field(default=110, alias="FRED_MAX_RPM")
     fred_observation_start: str = Field(default="1960-01-01", alias="FRED_OBSERVATION_START")
     ingest_concurrency: int = Field(default=6, alias="INGEST_CONCURRENCY")
